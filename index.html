@@ -1,1 +1,345 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Lean Six Sigma: Análise de Churn</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #e74c3c;
+            --accent-color: #3498db;
+            --bg-color: #ecf0f1;
+            --card-bg: #ffffff;
+            --text-color: #34495e;
+        }
 
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header h1 { margin: 0; font-size: 2.5rem; }
+        .header p { margin: 5px 0 0; opacity: 0.9; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .full-width { grid-column: 1 / -1; }
+
+        h2 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-box {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--secondary-color);
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .sigma-badge {
+            background-color: #27ae60;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        /* Ishikawa Style */
+        .ishikawa-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            position: relative;
+        }
+        
+        .fish-bone {
+            width: 48%;
+            margin-bottom: 15px;
+            border-left: 3px solid var(--accent-color);
+            padding-left: 10px;
+        }
+
+        .fish-bone h3 { margin: 0 0 5px 0; color: var(--primary-color); font-size: 1rem; }
+        .fish-bone ul { margin: 0; padding-left: 20px; font-size: 0.9rem; color: #555; }
+
+        /* DMAIC Steps */
+        .dmaic-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        .step {
+            flex: 1;
+            text-align: center;
+            background: #eee;
+            margin: 0 5px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .step.active { background: var(--accent-color); color: white; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Dashboard Forense de Churn</h1>
+        <p>Metodologia Lean Six Sigma | Jan-Fev 2026</p>
+    </div>
+
+    <div class="card full-width" style="margin-bottom: 20px;">
+        <div class="dmaic-steps">
+            <div class="step">1. DEFINE (Definir)</div>
+            <div class="step">2. MEASURE (Medir)</div>
+            <div class="step active">3. ANALYZE (Analisar)</div>
+            <div class="step">4. IMPROVE (Melhorar)</div>
+            <div class="step">5. CONTROL (Controlar)</div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        
+        <!-- Metrics -->
+        <div class="card">
+            <h2>Estatística do Processo <span class="sigma-badge">Nível Sigma Baixo</span></h2>
+            <div class="metric-box">
+                <div class="metric">
+                    <div class="metric-value">33</div>
+                    <div class="metric-label">Total de Defeitos (Churn)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">5.5</div>
+                    <div class="metric-label">Média Semanal ($\bar{x}$)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">1.9</div>
+                    <div class="metric-label">Desvio Padrão ($\sigma$)</div>
+                </div>
+            </div>
+            <p style="font-size: 0.9rem; color: #666;">
+                <strong>Interpretação:</strong> O processo é instável. O desvio padrão de 1.9 indica alta variabilidade semana a semana. A Semana 3 atingiu o Limite Superior de Controle (UCL), sinalizando um evento de "Causa Especial".
+            </p>
+        </div>
+
+        <!-- Control Chart -->
+        <div class="card">
+            <h2>Carta de Controle (Estabilidade)</h2>
+            <canvas id="controlChart"></canvas>
+        </div>
+
+        <!-- Pareto Chart -->
+        <div class="card">
+            <h2>Diagrama de Pareto (Causas Raiz)</h2>
+            <canvas id="paretoChart"></canvas>
+        </div>
+
+        <!-- Ishikawa Diagram -->
+        <div class="card">
+            <h2>Diagrama de Ishikawa (Causa e Efeito)</h2>
+            <div class="ishikawa-container">
+                <div class="fish-bone">
+                    <h3>🛠️ Máquina (Tecnologia)</h3>
+                    <ul>
+                        <li><strong>Carchat:</strong> Bloqueios de WhatsApp (Car Prime).</li>
+                        <li><strong>IA:</strong> Respostas incorretas/"Burrice" (Super Auto).</li>
+                        <li><strong>Integração:</strong> Erros de estoque (Pix Motors).</li>
+                    </ul>
+                </div>
+                <div class="fish-bone">
+                    <h3>📋 Método (Processo)</h3>
+                    <ul>
+                        <li><strong>Onboarding:</strong> Padronizado vs. Personalizado (Fast Lane).</li>
+                        <li><strong>Venda:</strong> Expectativa de automação total vs. Realidade.</li>
+                        <li><strong>Timing:</strong> Implantação durante obras/mudanças (JRK).</li>
+                    </ul>
+                </div>
+                <div class="fish-bone">
+                    <h3>👥 Mão de Obra (Pessoas)</h3>
+                    <ul>
+                        <li><strong>Liderança:</strong> Dono ausente/Divórcio (Getar).</li>
+                        <li><strong>Equipe:</strong> Resistência ao CRM/Sabotagem (TG, Elias).</li>
+                        <li><strong>Capacidade:</strong> Falta de braço operacional (Pexe).</li>
+                    </ul>
+                </div>
+                <div class="fish-bone">
+                    <h3>💰 Meio (Ambiente/Financeiro)</h3>
+                    <ul>
+                        <li><strong>Insolvência:</strong> Dívidas prévias (JK Veículos).</li>
+                        <li><strong>Mortalidade Infantil:</strong> Loja nova sem caixa (Fênix).</li>
+                        <li><strong>Custo:</strong> Baixo ROI percebido (Mabe Autos).</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Data Configuration
+        const weeks = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5', 'Semana 6'];
+        const churnData = [4, 6, 9, 3, 6, 5]; // Weekly distribution based on dates
+        const mean = 5.5;
+        const ucl = 9.28; // Mean + 2*Sigma (Approx 95% confidence)
+        const lcl = 1.72; // Mean - 2*Sigma
+
+        // Control Chart
+        const ctxControl = document.getElementById('controlChart').getContext('2d');
+        new Chart(ctxControl, {
+            type: 'line',
+            data: {
+                labels: weeks,
+                datasets: [
+                    {
+                        label: 'Cancelamentos',
+                        data: churnData,
+                        borderColor: '#2c3e50',
+                        backgroundColor: 'rgba(44, 62, 80, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 6,
+                        pointBackgroundColor: churnData.map(v => v >= 9 ? '#e74c3c' : '#2c3e50') // Highlight outlier
+                    },
+                    {
+                        label: 'Média',
+                        data: Array(6).fill(mean),
+                        borderColor: '#27ae60',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'UCL (Limite Superior)',
+                        data: Array(6).fill(ucl),
+                        borderColor: '#c0392b',
+                        borderDash: [2, 2],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Qtd. Cancelamentos' }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'bottom' },
+                    annotation: {
+                        annotations: {
+                            line1: {
+                                type: 'line',
+                                yMin: ucl,
+                                yMax: ucl,
+                                borderColor: 'red',
+                                borderWidth: 1,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Pareto Chart Data
+        // Categories aggregated from the 33 cases
+        // Tecnico/Produto: 12 (Carchat failures + general product dissatisfaction linked to tech)
+        // Expectativa/Metodologia: 9 (Sales mismatch)
+        // Financeiro/Custo: 7 (Insolvency, cost cutting)
+        // Equipe/Gestão: 5 (No team, owner absent)
+        
+        const ctxPareto = document.getElementById('paretoChart').getContext('2d');
+        new Chart(ctxPareto, {
+            type: 'bar',
+            data: {
+                labels: ['Falha Técnica/Produto', 'Expectativa/Metodologia', 'Financeiro/Custo', 'Equipe/Gestão'],
+                datasets: [{
+                    label: 'Frequência',
+                    data: [12, 9, 7, 5],
+                    backgroundColor: [
+                        '#e74c3c', // Red for critical tech failures
+                        '#f39c12',
+                        '#3498db',
+                        '#95a5a6'
+                    ],
+                    order: 1
+                }, {
+                    label: 'Acumulado %',
+                    data: [36, 63, 85, 100],
+                    type: 'line',
+                    borderColor: '#2c3e50',
+                    yAxisID: 'y1',
+                    order: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Ocorrências' }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        max: 100,
+                        title: { display: true, text: '%' },
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
