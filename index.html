@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Lean Six Sigma: Análise de Churn</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0/dist/chartjs-plugin-annotation.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -153,29 +154,29 @@
         
         <!-- Metrics -->
         <div class="card">
-            <h2>Estatística do Processo <span class="sigma-badge">Nível Sigma Baixo</span></h2>
+            <h2>Estatística do Processo <span id="sigmaBadge" class="sigma-badge">Calculando...</span></h2>
             <div class="metric-box">
                 <div class="metric">
-                    <div class="metric-value">33</div>
+                    <div class="metric-value" id="totalDefects">0</div>
                     <div class="metric-label">Total de Defeitos (Churn)</div>
                 </div>
                 <div class="metric">
-                    <div class="metric-value">5.5</div>
+                    <div class="metric-value" id="meanValue">0.0</div>
                     <div class="metric-label">Média Semanal ($\bar{x}$)</div>
                 </div>
                 <div class="metric">
-                    <div class="metric-value">1.9</div>
+                    <div class="metric-value" id="stdDevValue">0.0</div>
                     <div class="metric-label">Desvio Padrão ($\sigma$)</div>
                 </div>
             </div>
-            <p style="font-size: 0.9rem; color: #666;">
-                <strong>Interpretação:</strong> O processo é instável. O desvio padrão de 1.9 indica alta variabilidade semana a semana. A Semana 3 atingiu o Limite Superior de Controle (UCL), sinalizando um evento de "Causa Especial".
+            <p style="font-size: 0.9rem; color: #666;" id="analysisText">
+                <strong>Análise:</strong> Calculando estatísticas...
             </p>
         </div>
 
         <!-- Control Chart -->
         <div class="card">
-            <h2>Carta de Controle (Estabilidade)</h2>
+            <h2>Carta de Controle (Estabilidade 3$\sigma$)</h2>
             <canvas id="controlChart"></canvas>
         </div>
 
@@ -227,12 +228,58 @@
     </div>
 
     <script>
-        // Data Configuration
+        // --- 1. Dados e Cálculos Estatísticos Dinâmicos ---
+        
         const weeks = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4', 'Semana 5', 'Semana 6'];
-        const churnData = [4, 6, 9, 3, 6, 5]; // Weekly distribution based on dates
-        const mean = 5.5;
-        const ucl = 9.28; // Mean + 2*Sigma (Approx 95% confidence)
-        const lcl = 1.72; // Mean - 2*Sigma
+        const churnData = [4, 6, 9, 3, 6, 5]; // Dados reais extraídos dos relatórios
+        
+        // Funções Auxiliares
+        const calculateSum = (arr) => arr.reduce((a, b) => a + b, 0);
+        const calculateMean = (arr) => calculateSum(arr) / arr.length;
+        
+        const calculateStdDev = (arr, mean) => {
+            const squareDiffs = arr.map(value => Math.pow(value - mean, 2));
+            const avgSquareDiff = calculateSum(squareDiffs) / (arr.length - 1); // Sample Std Dev
+            return Math.sqrt(avgSquareDiff);
+        };
+
+        // Executando Cálculos
+        const totalDefects = calculateSum(churnData);
+        const mean = calculateMean(churnData);
+        const stdDev = calculateStdDev(churnData, mean);
+        
+        // Limites de Controle (Regra 3-Sigma)
+        const ucl = mean + (3 * stdDev); // Upper Control Limit
+        const lcl = Math.max(0, mean - (3 * stdDev)); // Lower Control Limit (não pode ser negativo)
+        const warningLimit = mean + (2 * stdDev); // Limite de alerta
+
+        // --- 2. Atualização da Interface (DOM) ---
+        
+        document.getElementById('totalDefects').textContent = totalDefects;
+        document.getElementById('meanValue').textContent = mean.toFixed(1);
+        document.getElementById('stdDevValue').textContent = stdDev.toFixed(1);
+
+        // Análise de Texto Dinâmica
+        const outliers = churnData.filter(v => v > warningLimit).length;
+        const analysisText = `
+            <strong>Interpretação:</strong> O processo apresenta instabilidade. 
+            O desvio padrão de <strong>${stdDev.toFixed(1)}</strong> indica variação semanal. 
+            A Semana 3 (${churnData[2]} defeitos) superou o limite de alerta (2$\sigma$), 
+            indicando uma <strong>Causa Especial</strong> que exige investigação imediata.
+        `;
+        document.getElementById('analysisText').innerHTML = analysisText;
+
+        // Badge de Nível
+        const sigmaBadge = document.getElementById('sigmaBadge');
+        if (stdDev > 2) {
+            sigmaBadge.style.backgroundColor = '#e74c3c'; // Red
+            sigmaBadge.textContent = 'Processo Instável';
+        } else {
+            sigmaBadge.style.backgroundColor = '#f39c12'; // Orange
+            sigmaBadge.textContent = 'Nível Sigma Baixo';
+        }
+
+        // --- 3. Gráficos ---
 
         // Control Chart
         const ctxControl = document.getElementById('controlChart').getContext('2d');
@@ -242,89 +289,120 @@
                 labels: weeks,
                 datasets: [
                     {
-                        label: 'Cancelamentos',
+                        label: 'Cancelamentos (Defeitos)',
                         data: churnData,
                         borderColor: '#2c3e50',
                         backgroundColor: 'rgba(44, 62, 80, 0.1)',
                         tension: 0.1,
                         pointRadius: 6,
-                        pointBackgroundColor: churnData.map(v => v >= 9 ? '#e74c3c' : '#2c3e50') // Highlight outlier
+                        pointBackgroundColor: churnData.map(v => v >= warningLimit ? '#e74c3c' : '#2c3e50')
                     },
                     {
                         label: 'Média',
                         data: Array(6).fill(mean),
                         borderColor: '#27ae60',
                         borderDash: [5, 5],
-                        pointRadius: 0
+                        pointRadius: 0,
+                        borderWidth: 2
                     },
                     {
-                        label: 'UCL (Limite Superior)',
+                        label: 'UCL (3$\sigma$)',
                         data: Array(6).fill(ucl),
                         borderColor: '#c0392b',
                         borderDash: [2, 2],
                         pointRadius: 0,
+                        borderWidth: 1,
                         fill: false
                     }
                 ]
             },
             options: {
                 responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'Qtd. Cancelamentos' }
-                    }
-                },
                 plugins: {
                     legend: { position: 'bottom' },
                     annotation: {
                         annotations: {
                             line1: {
                                 type: 'line',
-                                yMin: ucl,
-                                yMax: ucl,
-                                borderColor: 'red',
+                                yMin: warningLimit,
+                                yMax: warningLimit,
+                                borderColor: 'orange',
                                 borderWidth: 1,
+                                borderDash: [4, 4],
+                                label: {
+                                    content: 'Alerta 2σ',
+                                    display: true,
+                                    position: 'start'
+                                }
                             }
                         }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function(context) {
+                                return context.raw >= warningLimit ? '⚠ Causa Especial Detectada' : '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Qtd. Cancelamentos' },
+                        suggestedMax: ucl + 1
                     }
                 }
             }
         });
 
-        // Pareto Chart Data
-        // Categories aggregated from the 33 cases
-        // Tecnico/Produto: 12 (Carchat failures + general product dissatisfaction linked to tech)
-        // Expectativa/Metodologia: 9 (Sales mismatch)
-        // Financeiro/Custo: 7 (Insolvency, cost cutting)
-        // Equipe/Gestão: 5 (No team, owner absent)
+        // Pareto Chart
+        const paretoData = [12, 9, 7, 5]; // Frequência
+        const paretoLabels = ['Falha Técnica/Produto', 'Expectativa/Metodologia', 'Financeiro/Custo', 'Equipe/Gestão'];
         
+        // Calculando acumulado dinamicamente
+        let cumulativeSum = 0;
+        const totalPareto = calculateSum(paretoData);
+        const paretoPercentage = paretoData.map(val => {
+            cumulativeSum += val;
+            return (cumulativeSum / totalPareto) * 100;
+        });
+
         const ctxPareto = document.getElementById('paretoChart').getContext('2d');
         new Chart(ctxPareto, {
             type: 'bar',
             data: {
-                labels: ['Falha Técnica/Produto', 'Expectativa/Metodologia', 'Financeiro/Custo', 'Equipe/Gestão'],
+                labels: paretoLabels,
                 datasets: [{
                     label: 'Frequência',
-                    data: [12, 9, 7, 5],
+                    data: paretoData,
                     backgroundColor: [
-                        '#e74c3c', // Red for critical tech failures
+                        '#e74c3c', // Vital Few (Poucos Vitais)
                         '#f39c12',
                         '#3498db',
-                        '#95a5a6'
+                        '#95a5a6'  // Trivial Many (Muitos Triviais)
                     ],
-                    order: 1
+                    order: 1,
+                    yAxisID: 'y'
                 }, {
                     label: 'Acumulado %',
-                    data: [36, 63, 85, 100],
+                    data: paretoPercentage,
                     type: 'line',
                     borderColor: '#2c3e50',
+                    borderWidth: 2,
+                    pointRadius: 4,
                     yAxisID: 'y1',
                     order: 0
                 }]
             },
             options: {
                 responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
